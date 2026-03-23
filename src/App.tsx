@@ -40,7 +40,7 @@ const getTelegramUser = (): TgUser | null => {
 };
 
 // Пароль сервера — зміни тут
-const SERVER_PASSWORD = "chernihiv2025";
+// Пароль завантажується з Supabase (server_settings таблиця)
 
 // Захист від брутфорсу
 const getAttempts = () => parseInt(localStorage.getItem("crp_reg_attempts") || "0");
@@ -70,7 +70,16 @@ const RegisterModal = ({ onDone }: { onDone: (nick: string) => void }) => {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [serverPassword, setServerPassword] = useState<string | null>(null);
   const tgUser = getTelegramUser();
+
+  // Завантажуємо пароль з Supabase при відкритті форми
+  useEffect(() => {
+    supabase.from("server_settings").select("value").eq("key", "registration_password").maybeSingle()
+      .then(({ data }) => {
+        setServerPassword(data?.value || null);
+      });
+  }, []);
 
   const blocked = isBlocked();
   const blockMinutes = blocked
@@ -88,7 +97,12 @@ const RegisterModal = ({ onDone }: { onDone: (nick: string) => void }) => {
     }
 
     // Перевірка пароля
-    if (password !== SERVER_PASSWORD) {
+    if (serverPassword === null) {
+      setError("Не вдалось завантажити пароль. Перевір інтернет.");
+      setLoading(false);
+      return;
+    }
+    if (password !== serverPassword) {
       addAttempt();
       setError(`Невірний пароль сервера! Спроб залишилось: ${Math.max(0, 5 - getAttempts())}`);
       return;
@@ -262,7 +276,7 @@ const RegisterModal = ({ onDone }: { onDone: (nick: string) => void }) => {
             variant="green"
             className="w-full"
             onClick={handleRegister}
-            disabled={loading || nick.trim().length < 2 || !password || blocked}>
+            disabled={loading || nick.trim().length < 2 || !password || blocked || serverPassword === null}>
             {loading ? "Реєструю..." : "Розпочати гру"}
           </GradientButton>
         </div>
